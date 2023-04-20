@@ -283,7 +283,10 @@ App::get('/v1/account/sessions/oauth2/:provider')
     ->action(function (string $provider, string $success, string $failure, array $scopes, Request $request, Response $response, Document $project) use ($oauthDefaultSuccess, $oauthDefaultFailure) {
 
         $protocol = $request->getProtocol();
-        $callback = $protocol . '://' . $request->getHostname() . '/v1/account/sessions/oauth2/callback/' . $provider . '/' . $project->getId();
+        $port = $request->getPort();
+        $base_uri = $protocol . '://' . $request->getHostname() . (in_array($port, [80,443]) ? '' : ':' . $port);
+
+        $callback = $base_uri . '/v1/account/sessions/oauth2/callback/' . $provider . '/' . $project->getId();
         $providerEnabled = $project->getAttribute('authProviders', [])[$provider . 'Enabled'] ?? false;
 
         if (!$providerEnabled) {
@@ -309,11 +312,11 @@ App::get('/v1/account/sessions/oauth2/:provider')
         }
 
         if (empty($success)) {
-            $success = $protocol . '://' . $request->getHostname() . $oauthDefaultSuccess;
+            $success = $base_uri . $oauthDefaultSuccess;
         }
 
         if (empty($failure)) {
-            $failure = $protocol . '://' . $request->getHostname() . $oauthDefaultFailure;
+            $failure = $base_uri . $oauthDefaultFailure;
         }
 
         $oauth2 = new $className($appId, $appSecret, $callback, ['success' => $success, 'failure' => $failure], $scopes);
@@ -338,13 +341,14 @@ App::get('/v1/account/sessions/oauth2/callback/:provider/:projectId')
     ->inject('response')
     ->action(function (string $projectId, string $provider, string $code, string $state, Request $request, Response $response) {
 
-        $domain = $request->getHostname();
         $protocol = $request->getProtocol();
+        $port = $request->getPort();
+        $base_uri = $protocol . '://' . $request->getHostname() . (in_array($port, [80,443]) ? '' : ':' . $port);
 
         $response
             ->addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->addHeader('Pragma', 'no-cache')
-            ->redirect($protocol . '://' . $domain . '/v1/account/sessions/oauth2/' . $provider . '/redirect?'
+            ->redirect($base_uri . '/v1/account/sessions/oauth2/' . $provider . '/redirect?'
                 . \http_build_query(['project' => $projectId, 'code' => $code, 'state' => $state]));
     });
 
@@ -363,13 +367,14 @@ App::post('/v1/account/sessions/oauth2/callback/:provider/:projectId')
     ->inject('response')
     ->action(function (string $projectId, string $provider, string $code, string $state, Request $request, Response $response) {
 
-        $domain = $request->getHostname();
         $protocol = $request->getProtocol();
+        $port = $request->getPort();
+        $base_uri = $protocol . '://' . $request->getHostname() . (in_array($port, [80,443]) ? '' : ':' . $port);
 
         $response
             ->addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->addHeader('Pragma', 'no-cache')
-            ->redirect($protocol . '://' . $domain . '/v1/account/sessions/oauth2/' . $provider . '/redirect?'
+            ->redirect($base_uri . '/v1/account/sessions/oauth2/' . $provider . '/redirect?'
                 . \http_build_query(['project' => $projectId, 'code' => $code, 'state' => $state]));
     });
 
@@ -400,7 +405,10 @@ App::get('/v1/account/sessions/oauth2/:provider/redirect')
     ->action(function (string $provider, string $code, string $state, Request $request, Response $response, Document $project, Document $user, Database $dbForProject, Reader $geodb, Event $events) use ($oauthDefaultSuccess) {
 
         $protocol = $request->getProtocol();
-        $callback = $protocol . '://' . $request->getHostname() . '/v1/account/sessions/oauth2/callback/' . $provider . '/' . $project->getId();
+        $port = $request->getPort();
+        $base_uri = $protocol . '://' . $request->getHostname() . (in_array($port, [80,443]) ? '' : ':' . $port);
+
+        $callback = $base_uri . '/v1/account/sessions/oauth2/callback/' . $provider . '/' . $project->getId();
         $defaultState = ['success' => $project->getAttribute('url', ''), 'failure' => ''];
         $validateURL = new URL();
         $appId = $project->getAttribute('authProviders', [])[$provider . 'Appid'] ?? '';
@@ -725,8 +733,12 @@ App::post('/v1/account/sessions/magic-url')
 
         $dbForProject->deleteCachedDocument('users', $user->getId());
 
+        $protocol = $request->getProtocol();
+        $port = $request->getPort();
+        $base_uri = $protocol . '://' . $request->getHostname() . (in_array($port, [80,443]) ? '' : ':' . $port);
+
         if (empty($url)) {
-            $url = $request->getProtocol() . '://' . $request->getHostname() . '/auth/magic-url';
+            $url = $base_uri . '/auth/magic-url';
         }
 
         $url = Template::parseURL($url);
